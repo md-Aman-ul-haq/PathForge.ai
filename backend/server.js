@@ -1,8 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const { Groq } = require('groq-sdk');
-
+const { GoogleGenAI } = require("@google/genai");
 dotenv.config();
 
 const app = express();
@@ -12,9 +11,9 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Initialize Groq
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
+// Initialize Gemini API client
+const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY
+});
 // Health check
 app.get('/', (req, res) => {
   res.json({ status: 'PathForge API is running 🚀' });
@@ -171,22 +170,18 @@ Return ONLY a valid JSON object. No markdown. No code fences. No extra text. Use
 REMEMBER: Generate 3–6 roadmap phases. Total duration must be realistic for the career. All course URLs must be search-page URLs. Everything must be specific to the stated career goal.`;
 
   try {
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert career counselor and roadmap planner AI. Output pure raw JSON matching the requested structure perfectly. Do NOT output markdown code fences. Respect the student's career goal exactly — if they want to be a singer, chef, athlete, or anything else, build for that career."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      model: "llama-3.3-70b-versatile",
-      response_format: { type: "json_object" },
-    });
+   
+const response = await ai.models.generateContent({
+  model: "gemini-3.8-flash",
+  contents: prompt,
+  config: {
+    systemInstruction: "You are an expert career counselor and roadmap planner AI. Return only valid JSON matching the requested structure.",
+    responseMimeType: "application/json",
+    temperature: 0.7
+  }
+});
 
-    const text = chatCompletion.choices[0]?.message?.content || "";
+const text = response.text || "";
 
     let parsedData;
     try {
@@ -205,9 +200,12 @@ REMEMBER: Generate 3–6 roadmap phases. Total duration must be realistic for th
 
     return res.json({ success: true, data: parsedData });
   } catch (err) {
-    console.error('Groq API Error:', err.message);
-    return res.status(500).json({ error: 'AI generation failed. Please check your API key and try again.' });
-  }
+  console.error('Gemini API Error:', err);
+  return res.status(500).json({
+    error: 'AI generation failed.',
+    details: err.message
+  });
+   }
 });
 
 app.listen(PORT, () => {
